@@ -10,8 +10,8 @@
 1. Donner les droits d'éxécution à ce fichier : `chmod +x ./migration.sh`
 
 ## Principes
-Le script `migration.sh` va éxecuter successivement des scripts SQL présens dans les sous-dossiers.\\
-La migration peut être relancer à tout moment et va réinitialiser la base (BIENTÖT).
+Le script `migration.sh` va éxecuter successivement des scripts SQL présents dans les sous-dossiers.
+La migration peut être relancé à tout moment et va réinitialiser la base (BIENTôT).
 
 ## Exécution de la migration
 1. Lancer le script migration.sh : `./migration.sh`
