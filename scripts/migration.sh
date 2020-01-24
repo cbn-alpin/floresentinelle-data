@@ -43,4 +43,4 @@ sudo -n -u $pg_admin_name -s psql -d $db_name -c \
     "IMPORT FOREIGN SCHEMA utilisateurs FROM SERVER geonaturev1server INTO migrate_v1_utilisateurs;" >> $log_file
 
 # Example pour lancer un script SQL :
-#export PGPASSWORD='$db_pass';psql -h $db_host -U $db_user -d $db_name -f '01-users/01-t_roles.sql' >> $log_file
+#export PGPASSWORD="$db_pass";psql -h $db_host -U $db_user -d $db_name -f "01-users/01-t_roles.sql" >> $log_file
