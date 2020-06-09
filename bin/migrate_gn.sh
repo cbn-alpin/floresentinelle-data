@@ -61,65 +61,95 @@ function main() {
     parseScriptOptions "${@}"
     loadScriptConfig "${setting_file_path-}"
     redirectOutput "${log_migrate_gn}"
+    checkSuperuser
 
     #+----------------------------------------------------------------------------------------------------------+
     # Start script
     printInfo "Install GeoNature script started at: ${fmt_time_start}"
 
-    checkSuperuser
-
     commands=("wget")
     checkBinary "${commands[@]}"
 
     createDirectoriesArchitecture
+    stepToNext
 
     stopSupervisorctl
+    stepToNext
+
     backupPostgres
+    stepToNext
     installPostgres11
+    stepToNext
+    checkPostgresqlStatus
+    stepToNext
     copyPostgresConf
     upgradePostgresData
+    stepToNext
     removeOldPostgres
+    stepToNext
 
     updatePython
+    stepToNext
     installWeazyPrintDependencies
+    stepToNext
 
     installNvm
+    stepToNext
 
     backupOldGeoNature
+    stepToNext
     prepareNewGeoNature
+    stepToNext
     runGeoNatureInstallDb
+    stepToNext
     runGeoNatureInstallApp
+    stepToNext
 
     prepareNewTaxhub
+    stepToNext
     runTaxhubInstall
+    stepToNext
 
     prepareNewUsershub
+    stepToNext
     runUsershubInstall
+
     #+----------------------------------------------------------------------------------------------------------+
     displayTimeElapsed
 }
 
+function stepToNext() {
+    printPretty "${Yel}Go to the next step (y/n) ?"
+    read -r reply
+    echo # Move to a new line
+    if [[ ! "${reply}" =~ ^[Yy]$ ]];then
+        [[ "${0}" = "${BASH_SOURCE}" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
+    fi
+}
+
 function createDirectoriesArchitecture() {
+    printMsg "Creating Flore Sentinelle geonaturadmin directories architectures..."
+
     gn_dir="${HOME}/geonature"
     taxhub_dir="${HOME}/taxhub"
     usershub_dir="${HOME}/usershub"
-
     db_backup_dir="${HOME}/backup-db"
-    if [[ ! -d "${db_backup_dir}" ]]; then
-        mdkir -p "${db_backup_dir}"
-    fi
-
     mg_backup_dir="${HOME}/backup-geonature-v${mg_geonature_version_old}"
-    if [[ ! -d "${db_backup_dir}" ]]; then
-        mdkir -p "${db_backup_dir}"
-    fi
     gn_backup_dir="${mg_backup_dir}/geonature"
     taxhub_backup_dir="${mg_backup_dir}/taxhub"
     usershub_backup_dir="${mg_backup_dir}/usershub"
-
     dwl_dir="${HOME}/dwl"
+
+    if [[ ! -d "${db_backup_dir}" ]]; then
+        mkdir -p "${db_backup_dir}"
+    fi
+
+    if [[ ! -d "${mg_backup_dir}" ]]; then
+        mkdir -p "${mg_backup_dir}"
+    fi
+
     if [[ ! -d "${dwl_dir}" ]]; then
-        mdkir -p "${dwl_dir}"
+        mkdir -p "${dwl_dir}"
     fi
 }
 
@@ -130,48 +160,90 @@ function stopSupervisorctl() {
 }
 
 function backupPostgres() {
-    printMsg "Backuping Postgres..."
+    printMsg "Backuping Postgres (can take several minutes)..."
     local dumpfile="${db_backup_dir}/$(date +'%F')_dumpall_pg-10.13.dump"
-    sudo pg_dumpall > "${dumpfile}"
-    printMsg "If needed, restore Postgres DB with : psql -f \"${dumpfile}\" postgres"
+    if [[ ! -f "${dumpfile}" ]]; then
+        sudo -u postgres pg_dumpall > "${dumpfile}"
+    else
+        printVerbose "Postgresql already dumped in ${dumpfile}"
+    fi
     du -hs "${dumpfile}"
+    printPretty "${Gra}If needed, restore Postgres DB with :${RCol} ${Whi}psql -f \"${dumpfile}\" postgres ${RCol}"
 }
 
 function installPostgres11() {
     printMsg "Installing Postgres 11 in parallel of Postgres 10 ..."
     sudo apt-get install -y postgresql-server-dev-11
     sudo apt-get install -y postgis postgis-2.5 postgresql-11-postgis-2.5
-    printMsg "You shoud see Postgres 10 & 11 running:"
+}
+
+function checkPostgresqlStatus() {
+    printMsg "You shoud see Postgres 10 & 11 running (if not, script exit):"
+
+    printPretty "${Gra}Stoping all Postgres services..."
+    sudo systemctl stop postgresql*
+
+    printPretty "${Gra}Reverting port for Postgres 11, if this script already runned"
+    sudo sed -e "s/^port = 5432.*$/port = 5433 # (change requires restart)/" -i "/etc/postgresql/11/main/postgresql.conf"
+
+    printPretty "${Gra}Restarting all Postgres services..."
+    sudo systemctl restart postgresql*
+
+    printPretty "${Gra}Showing all Postgres services status..."
     sudo systemctl status postgresql*
 }
 
 function copyPostgresConf() {
-    printPretty "${Red}Now, transfert manually your conf from /etc/postgresql/10/* to /etc/postgresql/11/*, then enter 'Y'"
+    printPretty "${Red}Now, transfert manually your conf from /etc/postgresql/10/* to /etc/postgresql/11/*. After that, go to the next step (y/n) ?"
     read -r reply
     echo # Move to a new line
     if [[ ! "${reply}" =~ ^[Yy]$ ]];then
         [[ "${0}" = "${BASH_SOURCE}" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
     fi
-    sudo sed -e "s/datestyle =.*$/datestyle = 'ISO, DMY'/g" -i /etc/postgresql/11/main/postgresql.conf
+    sudo sed -e "s/datestyle =.*$/datestyle = 'iso, dmy'/g" -i /etc/postgresql/11/main/postgresql.conf
 }
 
 function upgradePostgresData() {
-    printMsg "Upgrading Postgresql data..."
-    sudo -u postgres pg_dropcluster --stop 11 main
-    sudo -u postgres pg_upgradecluster -m upgrade 10 main
-    #sudo -H -u postgres /usr/lib/postgresql/11/bin/pg_upgrade \
-        # -b /usr/lib/postgresql/10/bin \
-        # -B /usr/lib/postgresql/11/bin \
-        # -d /var/lib/postgresql/10/main \
-        # -D /var/lib/postgresql/11/main \
-        # -p 5432 \
-        # -P 5433
-    sudo -u pg_dropcluster --stop 10 main
+    local new_version="11"
+    local new_service="postgresql@${new_version}-main"
+    local old_version="10"
+    local old_service="postgresql@${old_version}-main"
+    local old_data_size=$(sudo du -hs "/var/lib/postgresql/${old_version}")
+
+    printMsg "Upgrading Postgresql data (size: ${old_data_size})..."
+
+    printPretty "${Gra}Stoping service ${new_service}..."
+    sudo systemctl stop "${new_service}"
+
+    printPretty "${Gra}Droping cluster ${new_version} main..."
+    sudo -u postgres pg_dropcluster "${new_version}" main
+    sudo systemctl daemon-reload
+
+    printPretty "${Gra}Upgrading data from old cluster ${old_version} main to new cluster ${new_version} main..."
+    sudo -u postgres pg_upgradecluster -v "${new_version}" -m upgrade "${old_version}" main --no-start
+    sudo systemctl daemon-reload
+
+    printPretty "${Gra}Stoping old cluster ${old_version} main..."
+    sudo systemctl stop "${old_service}"
+
+    printPretty "Change new Postgres server port to default (=5432)..."
+    sudo sed -e "s/^port = 5433.*$/port = 5432 # (change requires restart)/" -i "/etc/postgresql/${new_version}/main/postgresql.conf"
+
+    printPretty "${Gra}Starting service ${new_service}..."
+    sudo systemctl start "${new_service}"
+
+
+    printPretty "${Gra}Show service ${new_service} status (exit script if not started)..."
+    sudo systemctl status "${new_service}"
+
+    local new_data_size=$(sudo du -hs "/var/lib/postgresql/${new_version}")
+    printPretty "${Gra}Check data size (old/new):${RCol} ${old_data_size} / ${new_data_size}"
 }
 
 function removeOldPostgres() {
     printMsg "Removing old Postgresql server..."
-    sudo apt-get autoremove postgresql-10
+    local cmd="sudo apt-get remove --purge postgresql-10"
+    printPretty "${Gra}When you are sure about new data upgrading, remode old Postgres with:${RCol} ${cmd}"
 }
 
 function updatePython() {
@@ -180,8 +252,8 @@ function updatePython() {
 
     sudo apt-get install -y python3-pip python3-wheel python3-cffi
 
-    python3 -m pip install pip==20.0.2
-    pip3 install virtualenv==20.0.1
+    python3 -m pip install "pip==${mg_pip_version}"
+    pip3 install "virtualenv==${mg_virtualenv_version}"
 }
 
 function installWeazyPrintDependencies() {
@@ -198,25 +270,33 @@ function installWeazyPrintDependencies() {
 function installNvm() {
     printMsg "Installing Nvm (=> Node and NPM)..."
     wget -qO- "https://raw.githubusercontent.com/creationix/nvm/${mg_nvm_version}/install.sh" | bash
-    source "${HOME}/.bashrc"
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
     printInfo "Nvm version: $(nvm --version)"
 }
 
 function backupOldGeoNature() {
     printMsg "Backuping old GeoNature, Taxhub, Usershub and modules...}"
     cd "${HOME}"
-    mv geonature "${gn_backup_dir}"
-    mv bcf "${mg_backup_dir}"
-    mv install_all.ini "${mg_backup_dir}"
-    mv install_all.sh "${mg_backup_dir}"
-    mv log "${mg_backup_dir}"
-    mv sft "${mg_backup_dir}"
-    mv shs "${mg_backup_dir}"
-    mv sht "${mg_backup_dir}"
-    mv src "${mg_backup_dir}"
-    mv taxhub "${taxhub_backup_dir}"
-    mv usershub "${usershub_backup_dir}"
-    printMsg "You can retrieve backup in ${mg_backup_dir}"
+    if [[ $(du -s -B1 "${mg_backup_dir}" | cut -f1) -gt "500000000" ]]; then
+        printPretty "${Red} WARNING: check if the old version of GeoNature has already been correctly saved in ${mg_backup_dir} !"
+    else
+        local directories=("geonature" "bcf" "log" "sft" "shs" "sht" "src" "taxhub" "usershub")
+        local files=("install_all.ini" "install_all.sh")
+        for dir in "${directories[@]}"; do
+            if [[ -d "${HOME}/${dir}" ]]; then
+                mv "${HOME}/${dir}" "${mg_backup_dir}"
+            fi
+        done
+        for file in "${files[@]}"; do
+            if [[ -f "${HOME}/${file}" ]]; then
+                mv "${HOME}/${file}" "${mg_backup_dir}"
+            fi
+        done
+    fi
+    printPretty "${Gra}Saved data size:${RCol} $(du -hs ${mg_backup_dir})"
+    printPretty "${Gra}You can retrieve backup in:${RCol} ${mg_backup_dir}"
 }
 
 function prepareNewGeoNature() {
@@ -228,21 +308,33 @@ function prepareNewGeoNature() {
     fi
     cd "${dwl_dir}/"
     unzip "${archive_file}"
+    rm -fR "${gn_dir}"
     mv "${repo}-${mg_geonature_archive}" "${gn_dir}"
-    cp "${geonature_backup_dir}/config/settings.ini" "${geonature_dir}/config/settings.ini"
+    cp "${gn_backup_dir}/config/settings.ini" "${gn_dir}/config/settings.ini"
     sudo chown $(whoami) "${gn_dir}/"
 }
 
 function runGeoNatureInstallDb() {
     printMsg "Installing GeoNature database..."
+    printPretty "${Gra}Update config to set 'drop_apps_db' to TRUE !${RCol}"
+    sed -i "s/^drop_apps_db=.*$/drop_apps_db=true/g" "${gn_dir}/config/settings.ini"
+
+    printPretty "${Gra}Running GeoNature install DB script...${RCol}"
     cd "${gn_dir}/install"
+    set +e
     ./install_db.sh
+    set -e
+
+    printPretty "${Gra}Update config to revert 'drop_apps_db' to FALSE !${RCol}"
+    sed -i "s/^drop_apps_db=.*$/drop_apps_db=false/g" "${gn_dir}/config/settings.ini"
 }
 
 function runGeoNatureInstallApp() {
     printMsg "Installing GeoNature application..."
     cd "${gn_dir}/install"
+    set +e
     [ -s "install_app.sh" ] && \. "install_app.sh"
+    set -e
 }
 
 function prepareNewTaxhub() {
@@ -254,6 +346,7 @@ function prepareNewTaxhub() {
     fi
     cd "${dwl_dir}/"
     unzip "${archive_file}"
+    rm -fR "${taxhub_dir}"
     mv "${repo}-${mg_taxhub_archive}" "${taxhub_dir}"
     cp "${taxhub_backup_dir}/config/settings.ini" "${taxhub_dir}/config/settings.ini"
     sudo chown $(whoami) "${taxhub_dir}/"
@@ -262,10 +355,12 @@ function prepareNewTaxhub() {
 function runTaxhubInstall() {
     printMsg "Installing TaxHub application..."
     cd "${taxhub_dir}/"
+    set +e
     . create_sys_dir.sh
     create_sys_dir
 
     ./install_app.sh
+    set -e
 }
 
 function prepareNewUsershub() {
@@ -277,6 +372,7 @@ function prepareNewUsershub() {
     fi
     cd "${dwl_dir}/"
     unzip "${archive_file}"
+    rm -fR "${usershub_dir}"
     mv "${repo}-${mg_usershub_archive}" "${usershub_dir}"
     cp "${usershub_backup_dir}/config/settings.ini" "${usershub_dir}/config/settings.ini"
     sudo chown $(whoami) "${usershub_dir}/"
@@ -285,8 +381,9 @@ function prepareNewUsershub() {
 function runUsershubInstall() {
     printMsg "Installing UsersHub application..."
     cd "${usershub_dir}/"
-
+    set +e
     ./install_app.sh
+    set -e
 }
 
 main "${@}"
