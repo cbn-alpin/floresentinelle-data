@@ -60,7 +60,7 @@ function main() {
     initScript "${@}"
     parseScriptOptions "${@}"
     loadScriptConfig "${setting_file_path-}"
-    redirectOutput "${migrate_users_log}"
+    redirectOutput "${log_migrate_users}"
 
     #+----------------------------------------------------------------------------------------------------------+
     # Start script
