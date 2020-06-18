@@ -111,6 +111,13 @@ function main() {
     stepToNext runModuleShtInstall
     stepToNext updateModuleShtSettingsAfterInstall
 
+    stepToNext migrateGeoNatureUsers
+    stepToNext insertFloreSentinelleMetadata
+    stepToNext prepareSftData
+    stepToNext importSftData00
+    stepToNext importSftData01
+    stepToNext importSftData02
+
     #+----------------------------------------------------------------------------------------------------------+
     displayTimeElapsed
 }
@@ -120,8 +127,9 @@ function definePathesVariables() {
     taxhub_dir="${HOME}/taxhub"
     usershub_dir="${HOME}/usershub"
     modules_dir="${HOME}/modules"
-    db_backup_dir="${HOME}/backup-db"
-    mg_backup_dir="${HOME}/backup-geonature-v${mg_geonature_version_old}"
+    backup_dir="${HOME}/backup"
+    db_backup_dir="${backup_dir}/db"
+    mg_backup_dir="${backup_dir}/geonature/v${mg_geonature_version_old}"
     supervisor_backup_dir="${mg_backup_dir}/supervisor-conf"
     gn_backup_dir="${mg_backup_dir}/geonature"
     taxhub_backup_dir="${mg_backup_dir}/taxhub"
@@ -139,11 +147,11 @@ function stepToNext() {
     fi
 
     echo # Move to a new line
-    printPretty "Step #${step} - Go to next step '${function_name}' (y/j/c) ?" ${Mag}
+    printPretty "Step #${step} (⌚ $(date +'%H:%M'))- Go to next step '${function_name}' (y/j/c) ?" ${Mag}
     read -r -n 1 key
     echo # Move to a new line
     if [[ ! "${key}" =~ ^[YyjJ]$ ]];then
-        printPretty "Are you sure to exit script (y/n) ?" ${Mag}
+        printPretty "Are you sure to exit script (y/n) ?" ${Red}
         read -r -n 1 key
         echo # Move to a new line
         if [[ "${key}" =~ ^[Yy]$ ]];then
@@ -355,10 +363,9 @@ function prepareGeoNature() {
     cd "${dwl_dir}/"
     rm -fR "${repo}-${mg_geonature_archive}"
     unzip "${archive_file}"
-    sudo chown -R $(whoami) "${gn_dir}/"
-    rm -fR "${gn_dir}"
+    sudo rm -fR "${gn_dir}"
     mv "${repo}-${mg_geonature_archive}" "${gn_dir}"
-    sudo chown $(whoami) "${gn_dir}/"
+    sudo chown $(whoami): "${gn_dir}/"
 }
 
 function updateGeoNatureSettings() {
@@ -371,10 +378,18 @@ function updateGeoNatureSettings() {
     cp "${gn_backup_dir}/config/geonature_config.toml" "${gn_dir}/config/geonature_config.toml"
 
     printPretty "Copy Flore Sentinelle custom files to new GeoNature" ${Gra}
-    local logo_path="frontend/src/custom/images/logo_structure.png"
-    cp "${gn_backup_dir}/${logo_path}" "${gn_dir}/${logo_path}"
+    local logo_gn_path="frontend/src/assets/images/LogoGeonature.jpg"
+    cp "${gn_backup_dir}/${logo_gn_path}" "${gn_dir}/${logo_gn_path}"
+    local logo_structure_path="frontend/src/custom/images/logo_structure.png"
+    cp "${gn_backup_dir}/${logo_structure_path}" "${gn_dir}/${logo_structure_path}"
+    local custom_style_file_path="frontend/src/custom/custom.scss"
+    cp "${gn_backup_dir}/${custom_style_file_path}" "${gn_dir}/${custom_style_file_path}"
     local intro_path="frontend/src/custom/components/introduction/introduction.component.html"
     cp "${gn_backup_dir}/${intro_path}" "${gn_dir}/${intro_path}"
+
+    printPretty "Add new styles" ${Gra}
+    new_style="#app-toolbar {\n  background-color: #444;\n  color: #fff;\n}\n"
+    printf "${new_style}" >> "${gn_dir}/${custom_style_file_path}"
 
     printPretty "Add new settings" ${Gra}
     new_param="# Installer le module Occurrence d'habitat\ninstall_module_occhab=false\n"
@@ -389,6 +404,9 @@ function updateGeoNatureSettings() {
     printPretty "Update parameters" ${Gra}
     sed -i "s/^\(MODE\)=.*$/\1=\"prod\"/" "${gn_dir}/config/settings.ini"
     sed -i "s/^\(install_default_dem\)=.*$/\1=${mg_gn_dem_install}/" "${gn_dir}/config/settings.ini"
+    sed -i "s/^\(add_sample_data\)=.*$/\1=${mg_gn_sample_data}/" "${gn_dir}/config/settings.ini"
+    sed -i "s/^\(install_module_occhab\)=.*$/\1=${mg_gn_install_module_occhab}/" "${gn_dir}/config/settings.ini"
+    sed -i "s/^\(install_module_validation\)=.*$/\1=${mg_gn_install_module_validation}/" "${gn_dir}/config/settings.ini"
 
     printPretty "Define version releases of dependencies (UsersHub, TaxHub, Nomenclature, HabRef API)" ${Gra}
     sed -i "s/^\(usershub_release\)=.*$/\1=\"${mg_usershub_release}\"/" "${gn_dir}/config/settings.ini"
@@ -398,6 +416,10 @@ function updateGeoNatureSettings() {
 
     printPretty "${Blink}${Red}WARNING: ${RCol}${Gra}update config to set 'drop_apps_db' to '${mg_gn_drop_db}' !${RCol}"
     sed -i "s/^\(drop_apps_db\)=.*$/\1=${mg_gn_drop_db}/" "${gn_dir}/config/settings.ini"
+
+    printPretty "Update 'geonature_conf.toml' parameters" ${Gra}
+    new_param="# Méthode d'encodage du mot de passe nécessaire à l'identification (hash ou md5)\nPASS_METHOD = \"md5\"\n"
+    sed -i "s/^\(API_TAXHUB\s*=.*\)$/\1\n${new_param}/" "${gn_dir}/config/geonature_config.toml"
 }
 
 function runGeoNatureInstallDb() {
@@ -405,6 +427,8 @@ function runGeoNatureInstallDb() {
 
     printPretty "Restart Postgresql to remove all connexion to GeoNature database..." ${Gra}
     sudo systemctl restart postgresql@11-main
+    printPretty "Stop all Supervisor services to remove all connexion to GeoNature database..." ${Gra}
+    sudo supervisorctl stop all
 
     printPretty "Running GeoNature install DB script..." ${Gra}
     cd "${gn_dir}/install"
@@ -414,6 +438,9 @@ function runGeoNatureInstallDb() {
 
     printPretty "Update config to force 'drop_apps_db' to FALSE !" ${Gra}
     sed -i "s/^drop_apps_db=.*$/drop_apps_db=false/g" "${gn_dir}/config/settings.ini"
+
+    printPretty "Restart all Supervisor services..." ${Gra}
+    sudo supervisorctl start all
 }
 
 function runGeoNatureInstallApp() {
@@ -425,6 +452,8 @@ function runGeoNatureInstallApp() {
     export install_module_occhab=false
     [ -s "install_app.sh" ] && \. "install_app.sh"
     set -e
+
+    sudo chown $(whoami): "${gn_dir}/"
 }
 
 function prepareTaxhub() {
@@ -441,8 +470,7 @@ function prepareTaxhub() {
     cd "${dwl_dir}/"
     rm -fR "${repo}-${mg_taxhub_archive}"
     unzip "${archive_file}"
-    sudo chown -R $(whoami) "${taxhub_dir}/"
-    rm -fR "${taxhub_dir}"
+    sudo rm -fR "${taxhub_dir}"
     mv "${repo}-${mg_taxhub_archive}" "${taxhub_dir}"
     sudo chown $(whoami) "${taxhub_dir}/"
 }
@@ -492,8 +520,7 @@ function prepareUsershub() {
     cd "${dwl_dir}/"
     rm -fR "${repo}-${mg_usershub_archive}"
     unzip "${archive_file}"
-    sudo chown -R $(whoami) "${usershub_dir}/"
-    rm -fR "${usershub_dir}"
+    sudo rm -fR "${usershub_dir}"
     mv "${repo}-${mg_usershub_archive}" "${usershub_dir}"
     sudo chown $(whoami) "${usershub_dir}/"
 }
@@ -509,6 +536,11 @@ function updateUsershubSettings() {
 
     printPretty "${Blink}${Red}WARNING: ${RCol}${Gra}Update config to set 'drop_apps_db' to '${mg_gn_drop_db}' !${RCol}"
     sed -i "s/^\(drop_apps_db\)\s*=.*$/\1=${mg_gn_drop_db}/" "${usershub_dir}/config/settings.ini"
+
+    printPretty "Change 'config.py' parameters" ${Gra}
+    sed -i "s/^\(FILL_MD5_PASS\)\s*=.*$/\1 = True/" "${usershub_dir}/config/config.py"
+    sed -i "s/^\[PASS_METHOD\)\s*=.*$/\1 = \"md5\"/" "${usershub_dir}/config/config.py"
+
 }
 
 function runUsershubInstall() {
@@ -546,22 +578,21 @@ function prepareModuleSft() {
     cd "${dwl_dir}/"
     rm -fR "${repo}-${module_archive}"
     unzip "${archive_file}"
-    sudo chown -R $(whoami) "${module_dir}/"
-    rm -fR "${module_dir}"
+    sudo rm -fR "${module_dir}"
     mv "${repo}-${module_archive}" "${module_dir}"
     sudo chown $(whoami) "${module_dir}/"
 }
 
 function updateModuleSftSettings() {
     printMsg "Updating module SFT settings..."
-    local abr="sht"
-    local module_dir="${modules_dir}/${abr}/"
+    local abr="sft"
+    local module_dir="${modules_dir}/${abr}"
 
-    printPretty "Copy samples files to create new config files..."
+    printPretty "Copy samples files to create new config files..." ${Gra}
     cp "${module_dir}/config/settings.sample.ini" "${module_dir}/config/settings.ini"
     cp "${module_dir}/config/conf_gn_module.sample.toml" "${module_dir}/config/conf_gn_module.toml"
 
-    printPretty "Update 'conf_gn_module.toml' file parameters..."
+    printPretty "Update 'conf_gn_module.toml' file parameters..." ${Gra}
     sed -i "s/^\(map_gpx_color\)\s*=.*$/\1 = \"magenta\"/" "${module_dir}/config/conf_gn_module.toml"
 
     printPretty "${Blink}${Red}WARNING: ${RCol}${Whi}update MANUALLY config files before run next step !${RCol}"
@@ -570,11 +601,11 @@ function updateModuleSftSettings() {
 function runModuleSftInstall() {
     printMsg "Installing SFT module..."
     local abr="sft"
-    local module_dir="${modules_dir}/${abr}/"
+    local module_dir="${modules_dir}/${abr}"
 
     cd "${gn_dir}/backend/"
     source venv/bin/activate
-    geonature install_gn_module "${module_dir}" "${abr}"
+    geonature install_gn_module "${module_dir}/" "${abr}"
 }
 
 function prepareModuleSht() {
@@ -599,8 +630,7 @@ function prepareModuleSht() {
     cd "${dwl_dir}/"
     rm -fR "${repo}-${module_archive}"
     unzip "${archive_file}"
-    sudo chown -R $(whoami) "${module_dir}/"
-    rm -fR "${module_dir}"
+    sudo rm -fR "${module_dir}"
     mv "${repo}-${module_archive}" "${module_dir}"
     sudo chown $(whoami) "${module_dir}/"
 }
@@ -608,32 +638,169 @@ function prepareModuleSht() {
 function updateModuleShtSettings() {
     printMsg "Updating module SHT settings..."
     local abr="sht"
-    local module_dir="${modules_dir}/${abr}/"
+    local module_dir="${modules_dir}/${abr}"
 
-    printPretty "Copy samples files to create new config files..."
+    printPretty "Copy samples files to create new config files..." "${Gra}"
     cp "${module_dir}/config/conf_gn_module.sample.toml" "${module_dir}/config/conf_gn_module.toml"
     cp "${module_dir}/config/imports_settings.sample.ini" "${module_dir}/config/imports_settings.ini"
     cp "${module_dir}/config/settings.sample.ini" "${module_dir}/config/settings.ini"
 
     printPretty "${Blink}${Red}WARNING: ${RCol}${Whi}update MANUALLY config files before run next step !${RCol}"
+
+    printPretty "Insert new parameters in 'settings.ini' files..." ${Gra}
+    local new_param="#+----------------------------------------------------------------------------+\n"
+    local new_param+="# Data configuration used by install, uninstall and imports scripts\n\n"
+    local new_param+="# Observers list Code (see value in column code_liste of utilisateurs.t_listes table)\n"
+    local new_param+="# Use Usershub interface to make one if needed.\n"
+    local new_param+="observers_list_code=\"OFS\"\n"
+    printf "${new_param}" >> "${module_dir}/config/settings.ini"
 }
 
 function runModuleShtInstall() {
     printMsg "Installing SHT module..."
     local abr="sht"
-    local module_dir="${modules_dir}/${abr}/"
+    local module_dir="${modules_dir}/${abr}"
 
     cd "${gn_dir}/backend/"
     source venv/bin/activate
-    geonature install_gn_module "${module_dir}" "${abr}"
+    geonature install_gn_module "${module_dir}/" "${abr}"
 }
 
 function updateModuleShtSettingsAfterInstall() {
     printMsg "Updating'settings.ini' parameters..."
 
     sed -i "s/^\(insert_sample_data\)\s*=.*$/\1=\"false\"/" "${gn_dir}/config/settings.ini"
-    sed -i "s/^\(db_superuser_name\)\s*=.*$/\1=\"postgres\"/" "${gn_dir}/config/settings.ini"
-    sed -i "s/^\(db_superuser_pass\)\s*=.*$/\1=\"\"/" "${gn_dir}/config/settings.ini"
+}
+
+function migrateGeoNatureUsers() {
+    printMsg "Updating'settings.ini' parameters..."
+    cd "${bin_dir}"
+
+    ./migrate_users.sh -v
+}
+
+function insertFloreSentinelleMetadata() {
+    printMsg "Inserting Flore Sentinelle metadata..."
+    export PGPASSWORD="${db_pass}"; \
+        psql -h "${db_host}" -U "${db_user}" -d "${db_name}" ${psql_verbosity} \
+            -f "${sql_dir}/02-gn-v2.4.0/01_initialize_meta.sql"
+}
+
+function prepareSftData() {
+    local readonly sft_dir="${modules_dir}/sft"
+    printMsg "Prepare SFT data import directories structure..."
+
+    printMsg "Update import settings..."
+    sed -i 's#^\(taxons_csv_path\)\s*=.*$#\1="${import_dir}/00/taxons.csv"#' "${sft_dir}/config/settings.ini"
+
+    sed -i 's#^\(nomenclatures_csv_path\)\s*=.*$#\1="${import_dir}/00/nomenclatures.csv"#' "${sft_dir}/config/settings.ini"
+
+    sed -i 's#^\(meshes_tmp_table\)\s*=.*$#\1="tmp_meshes"#' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(meshes_source\)\s*=.*$/\1="CBNA"/' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(meshes_shape_path\)\s*=.*$#\1="${import_dir}/${import_number}/meshes.shp"#' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(meshes_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_meshes.log"#' "${sft_dir}/config/settings.ini"
+
+    sed -i 's#^\(sites_tmp_table\)\s*=.*$#\1="tmp_sites"#' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(sites_shape_path\)\s*=.*$#\1="${import_dir}/${import_number}/sites.shp"#' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(sites_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_sites.log"#' "${sft_dir}/config/settings.ini"
+
+    sed -i 's#^\(visits_csv_path\)\s*=.*$#\1="${import_dir}/${import_number}/visits.csv"#' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(visits_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_visits.log"#' "${sft_dir}/config/settings.ini"
+}
+
+function importSftData00() {
+    local readonly sft_dir="${modules_dir}/sft"
+    printMsg "Importing SFT data #00..."
+
+    printPretty "Update import settings #00" ${Gra}
+    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-05-31"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(import_number\)\s*=.*$/\1="00"/' "${sft_dir}/config/settings.ini"
+    local new_comment="# Import 00: 2020-05-31 - referentiels"
+    if ! grep -q "${new_comment}" "${sft_dir}/config/settings.ini" ; then
+        sed -i "s/^\(import_date=.*\)$/\1\n${new_comment}\n/" "${sft_dir}/config/settings.ini"
+    fi
+
+    printPretty "Download SFT import data #00" ${Gra}
+    rm -f "${sft_dir}/data/imports/sft_import_00.zip"
+    curl -X POST https://content.dropboxapi.com/2/files/download_zip \
+        --header "Authorization: Bearer $mg_dropbox_token" \
+        --header "Dropbox-API-Arg: {\"path\": \"/sft/imports/00\"}" \
+        > "${sft_dir}/data/imports/sft_import_00.zip"
+
+    printPretty "Unzip SFT data #00" ${Gra}
+    cd "${sft_dir}/data/imports/"
+    rm -fR "00/"
+    unzip "sft_import_00.zip"
+
+    printPretty "Import SFT data #00" ${Gra}
+    cd "${sft_dir}/bin/"
+    ./import_taxons.sh -v
+    ./import_nomenclatures.sh -v
+}
+
+function importSftData01() {
+    local readonly sft_dir="${modules_dir}/sft"
+    printMsg "Importing SFT data #01..."
+
+    printPretty "Update import settings #01" ${Gra}
+    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-06-01"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(import_number\)\s*=.*$/\1="01"/' "${sft_dir}/config/settings.ini"
+    local new_comment="# Import 01: 2020-06-01"
+    if ! grep -q "${new_comment}" "${sft_dir}/config/settings.ini" ; then
+        sed -i "s/^\(import_date=.*\)$/\1\n${new_comment}\n/" "${sft_dir}/config/settings.ini"
+    fi
+    sed -i 's/^\(site_code_column\)\s*=.*$/\1="idzp"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(site_desc_column\)\s*=.*$/\1="taxon"/' "${sft_dir}/config/settings.ini"
+
+    printPretty "Download SFT import data #01" ${Gra}
+    rm -f "${sft_dir}/data/imports/sft_import_01.zip"
+    curl -X POST https://content.dropboxapi.com/2/files/download_zip \
+        --header "Authorization: Bearer $mg_dropbox_token" \
+        --header "Dropbox-API-Arg: {\"path\": \"/sft/imports/01\"}" \
+        > "${sft_dir}/data/imports/sft_import_01.zip"
+
+    printPretty "Unzip SFT data #01" ${Gra}
+    cd "${sft_dir}/data/imports/"
+    rm -fR "01/"
+    unzip "sft_import_01.zip"
+
+    printPretty "Import SFT data #01" ${Gra}
+    cd "${sft_dir}/bin/"
+    ./import_meshes.sh -v
+    ./import_sites.sh -v
+    ./import_visits.sh -v
+}
+
+function importSftData02() {
+    local readonly sft_dir="${modules_dir}/sft"
+    printMsg "Importing SFT data #02..."
+
+    printPretty "Update import settings #02" ${Gra}
+    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-06-02"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(import_number\)\s*=.*$/\1="02"/' "${sft_dir}/config/settings.ini"
+    local new_comment="# Import 02: 2020-06-02"
+    if ! grep -q "${new_comment}" "${sft_dir}/config/settings.ini" ; then
+        sed -i "s/^\(import_date=.*\)$/\1\n${new_comment}\n/" "${sft_dir}/config/settings.ini"
+    fi
+
+    printPretty "Download SFT import data #02" ${Gra}
+    rm -f "${sft_dir}/data/imports/sft_import_02.zip"
+    curl -X POST https://content.dropboxapi.com/2/files/download_zip \
+        --header "Authorization: Bearer $mg_dropbox_token" \
+        --header "Dropbox-API-Arg: {\"path\": \"/sft/imports/02\"}" \
+        > "${sft_dir}/data/imports/sft_import_02.zip"
+
+    printPretty "Unzip SFT data #02" ${Gra}
+    cd "${sft_dir}/data/imports/"
+    rm -fR "02/"
+    unzip "sft_import_02.zip"
+
+    printPretty "Import SFT data #02" ${Gra}
+    cd "${sft_dir}/bin/"
+    ./import_meshes.sh -v
+    ./import_sites.sh -v
+    ./import_visits.sh -v
 }
 
 main "${@}"
+

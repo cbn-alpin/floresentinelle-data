@@ -61,6 +61,7 @@ function main() {
     parseScriptOptions "${@}"
     loadScriptConfig "${setting_file_path-}"
     redirectOutput "${log_migrate_users}"
+    checkSuperuser
 
     #+----------------------------------------------------------------------------------------------------------+
     # Start script
@@ -84,15 +85,15 @@ function main() {
 
 function createFdwLinks() {
     printMsg "Create GeoNature v1 FDW links in local GeoNature v2 database"
-    export PGPASSWORD="${db_superuser_pass}"; \
-        psql -h "${db_host}" -U "${db_superuser_name}" -d "${db_name}" ${psql_verbosity} \
+
+    sudo -n -u ${pg_admin_name} -s \
+        psql -d "${db_name}" ${psql_verbosity} \
             -v gn1DbHost="${gn1_db_host}" \
             -v gn1DbName="${gn1_db_name}" \
             -v gn1DbPort="${gn1_db_port}" \
             -v gn1DbUser="${gn1_db_user}" \
             -v gn1DbPass="${gn1_db_pass}" \
             -v dbUser="${db_user}" \
-            -v dbSuperUser="${db_superuser_name}" \
             -f "${sql_dir}/01-users/01_create_fdw.sql"
 }
 
