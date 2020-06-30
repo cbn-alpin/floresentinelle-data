@@ -594,6 +594,8 @@ function updateModuleSftSettings() {
 
     printPretty "Update 'conf_gn_module.toml' file parameters..." ${Gra}
     sed -i "s/^\(map_gpx_color\)\s*=.*$/\1 = \"magenta\"/" "${module_dir}/config/conf_gn_module.toml"
+    sed -i "s/^\(id_type_maille\)\s*=.*$/\1 = 35/" "${module_dir}/config/conf_gn_module.toml"
+    sed -i "s/^\(id_list_taxon\)\s*=.*$/\1 = 101/" "${module_dir}/config/conf_gn_module.toml"
 
     printPretty "${Blink}${Red}WARNING: ${RCol}${Whi}update MANUALLY config files before run next step !${RCol}"
 }

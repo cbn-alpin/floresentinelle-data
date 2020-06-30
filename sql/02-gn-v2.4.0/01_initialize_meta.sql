@@ -47,12 +47,12 @@ INSERT INTO gn_meta.t_acquisition_frameworks (
     acquisition_framework_end_date
 ) VALUES (
     '28917b9b-2e17-4bbe-8207-1254a9748844',
-    'Suivis Réseau Flore Sentinelle',
+    'Suivis Flore Sentinelle',
     'Ensemble des suivis réalisés dans les Alpes françaises dans le cadre du réseau Flore Sentinelle.',
-    357,
-    'Alpes française.',
+    ref_nomenclatures.get_id_nomenclature('NIVEAU_TERRITORIAL', '4'),,
+    'Alpes françaises.',
     'Suivi, Alpes, France, Flore, Réseau.',
-    393,
+    ref_nomenclatures.get_id_nomenclature('TYPE_FINANCEMENT', '1'),
     'Identifier et comprendre les dynamiques démographiques des espèces végétales et des habitats, sentinelles pour le suivi des changements globaux dans les Alpes françaises.',
     'Flore',
     NULL,
@@ -69,10 +69,18 @@ INSERT INTO gn_meta.cor_acquisition_framework_actor (
     id_organism,
     id_nomenclature_actor_role
 ) VALUES (
-    1,
+    (
+        SELECT id_acquisition_framework
+        FROM gn_meta.t_acquisition_frameworks
+        WHERE unique_acquisition_framework_id = '28917b9b-2e17-4bbe-8207-1254a9748844'
+    ),
     NULL,
-    1,
-    367
+    (
+        SELECT id_organisme
+        FROM utilisateurs.bib_organismes
+        WHERE nom_organisme = 'CBN Alpin'
+    ),
+    ref_nomenclatures.get_id_nomenclature('ROLE_ACTEUR', '1')
 ) ;
 
 \echo '----------------------------------------------------------------------------'
@@ -81,9 +89,30 @@ INSERT INTO gn_meta.cor_acquisition_framework_objectif (
     id_acquisition_framework,
     id_nomenclature_objectif
 ) VALUES
-    (1, 363),
-    (1, 364),
-    (1, 365) ;
+    (
+        (
+            SELECT id_acquisition_framework
+            FROM gn_meta.t_acquisition_frameworks
+            WHERE unique_acquisition_framework_id = '28917b9b-2e17-4bbe-8207-1254a9748844'
+        ),
+        ref_nomenclatures.get_id_nomenclature('CA_OBJECTIFS', '4')
+    ),
+    (
+        (
+            SELECT id_acquisition_framework
+            FROM gn_meta.t_acquisition_frameworks
+            WHERE unique_acquisition_framework_id = '28917b9b-2e17-4bbe-8207-1254a9748844'
+        ),
+        ref_nomenclatures.get_id_nomenclature('CA_OBJECTIFS', '5')
+    ),
+    (
+        (
+            SELECT id_acquisition_framework
+            FROM gn_meta.t_acquisition_frameworks
+            WHERE unique_acquisition_framework_id = '28917b9b-2e17-4bbe-8207-1254a9748844'
+        ),
+        ref_nomenclatures.get_id_nomenclature('CA_OBJECTIFS', '6')
+    ) ;
 
 \echo '----------------------------------------------------------------------------'
 \echo 'Insert link between acquisition framework and SINP "volet"'
@@ -91,7 +120,14 @@ INSERT INTO gn_meta.cor_acquisition_framework_voletsinp (
     id_acquisition_framework,
     id_nomenclature_voletsinp
 ) VALUES
-    (1, 400) ;
+    (
+        (
+            SELECT id_acquisition_framework
+            FROM gn_meta.t_acquisition_frameworks
+            WHERE unique_acquisition_framework_id = '28917b9b-2e17-4bbe-8207-1254a9748844'
+        ),
+        ref_nomenclatures.get_id_nomenclature('VOLET_SINP', '1')
+    ) ;
 
 \echo '----------------------------------------------------------------------------'
 \echo 'Create datasets in Flore Sentinelle acquisition framework'
@@ -117,45 +153,54 @@ INSERT INTO gn_meta.t_datasets (
     active,
     validable
 ) VALUES (
-    'b5359d75-6ea8-4487-a3e2-24090599704a',
-    1,
-    'Suivis Habitat Territoire',
-    'SHT',
-    'Données acquises dans le cadre du protocole Suivi Habitat Territoire.',
-    325,
-    NULL,
-    false,
-    true,
-    438,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    404,
-    78,
-    75,
-    323,
-    true,
-    true
-),(
     'e4af0284-740d-42d3-8052-fd2912f07d5b',
-    1,
+    (
+        SELECT id_acquisition_framework
+        FROM gn_meta.t_acquisition_frameworks
+        WHERE unique_acquisition_framework_id = '28917b9b-2e17-4bbe-8207-1254a9748844'
+    ),
     'Suivis Flore Territoire',
     'SFT',
     'Données acquises dans le cadre du protocole Suivi Flore Territoire.',
-    325,
+    ref_nomenclatures.get_id_nomenclature('DATA_TYP', '1'),
     NULL,
     false,
     true,
-    436,
+    ref_nomenclatures.get_id_nomenclature('JDD_OBJECTIFS', '5.2'),
     NULL,
     NULL,
     NULL,
     NULL,
-    404,
-    78,
-    75,
-    323,
+    ref_nomenclatures.get_id_nomenclature('METHO_RECUEIL', '1'),
+    ref_nomenclatures.get_id_nomenclature('DS_PUBLIQUE', 'Pu'),
+    ref_nomenclatures.get_id_nomenclature('STATUT_SOURCE', 'Te'),
+    ref_nomenclatures.get_id_nomenclature('RESOURCE_TYP', '1'),
+    true,
+    true
+),
+(
+    'b5359d75-6ea8-4487-a3e2-24090599704a',
+    (
+        SELECT id_acquisition_framework
+        FROM gn_meta.t_acquisition_frameworks
+        WHERE unique_acquisition_framework_id = '28917b9b-2e17-4bbe-8207-1254a9748844'
+    ),
+    'Suivis Habitat Territoire',
+    'SHT',
+    'Données acquises dans le cadre du protocole Suivi Habitat Territoire.',
+    ref_nomenclatures.get_id_nomenclature('DATA_TYP', '1'),
+    NULL,
+    false,
+    true,
+    ref_nomenclatures.get_id_nomenclature('JDD_OBJECTIFS', '5.2'),
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    ref_nomenclatures.get_id_nomenclature('METHO_RECUEIL', '1'),
+    ref_nomenclatures.get_id_nomenclature('DS_PUBLIQUE', 'Pu'),
+    ref_nomenclatures.get_id_nomenclature('STATUT_SOURCE', 'Te'),
+    ref_nomenclatures.get_id_nomenclature('RESOURCE_TYP', '1'),
     true,
     true
 ) ;
@@ -168,16 +213,65 @@ INSERT INTO gn_meta.cor_dataset_actor (
     id_organism,
     id_nomenclature_actor_role
 ) VALUES
-    (1, NULL, 1, 367),
-    (2, NULL, 1, 367) ;
+    (
+        (
+            SELECT id_dataset
+            FROM gn_meta.t_datasets
+            WHERE unique_dataset_id = 'e4af0284-740d-42d3-8052-fd2912f07d5b'
+        ),
+        NULL,
+        (
+            SELECT id_organisme
+            FROM utilisateurs.bib_organismes
+            WHERE nom_organisme = 'CBN Alpin'
+        ),
+        ref_nomenclatures.get_id_nomenclature('ROLE_ACTEUR', '1')
+    ),
+    (
+        (
+            SELECT id_dataset
+            FROM gn_meta.t_datasets
+            WHERE unique_dataset_id = 'b5359d75-6ea8-4487-a3e2-24090599704a'
+        ),
+        NULL,
+        (
+            SELECT id_organisme
+            FROM utilisateurs.bib_organismes
+            WHERE nom_organisme = 'CBN Alpin'
+        ),
+        ref_nomenclatures.get_id_nomenclature('ROLE_ACTEUR', '1')
+    ) ;
 
 \echo '----------------------------------------------------------------------------'
 \echo 'Insert link between datasets and modules'
 INSERT INTO gn_commons.cor_module_dataset (
-    id_module,id_dataset
+    id_module,
+    id_dataset
 ) VALUES
-    (5, 1),
-    (6, 2) ;
+    (
+        (
+            SELECT id_module
+            FROM gn_commons.t_modules
+            WHERE module_code ILIKE 'SFT'
+        ),
+        (
+            SELECT id_dataset
+            FROM gn_meta.t_datasets
+            WHERE unique_dataset_id = 'e4af0284-740d-42d3-8052-fd2912f07d5b'
+        )
+    ),
+    (
+        (
+            SELECT id_module
+            FROM gn_commons.t_modules
+            WHERE module_code ILIKE 'SHT'
+        ),
+        (
+            SELECT id_dataset
+            FROM gn_meta.t_datasets
+            WHERE unique_dataset_id = 'b5359d75-6ea8-4487-a3e2-24090599704a'
+        )
+    ) ;
 
 -- ----------------------------------------------------------------------------
 COMMIT;
