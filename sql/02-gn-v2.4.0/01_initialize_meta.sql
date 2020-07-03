@@ -6,10 +6,10 @@ UPDATE gn_commons.t_modules
 SET
     module_label = 'OccTax',
     module_picto = 'fa-map-marker',
-    module_desc = 'Module de saisie d''observations faune et flore.'
+    module_desc = 'Module de saisie d''observations faune et flore.',
     active_frontend = False,
     active_backend = False
-WHERE module_code = 'OCCTAX' ;
+WHERE module_code ILIKE 'OCCTAX' ;
 
 \echo '----------------------------------------------------------------------------'
 \echo 'Update SFT module'
@@ -17,8 +17,8 @@ UPDATE gn_commons.t_modules
 SET
     module_label = 'S. Flore Territoire',
     module_picto = 'fa-leaf',
-    module_desc = 'Module de Suivi de la Flore d''un Territoire',
-WHERE module_code = 'SFT' ;
+    module_desc = 'Module de Suivi de la Flore d''un Territoire'
+WHERE module_code ILIKE 'SFT' ;
 
 \echo '----------------------------------------------------------------------------'
 \echo 'Update SHT module'
@@ -26,8 +26,8 @@ UPDATE gn_commons.t_modules
 SET
     module_label = 'S. Habitat Territoire',
     module_picto = 'fa-map',
-    module_desc = 'Module de Suivi des Habitats d''un Territoire',
-WHERE module_code = 'SHT' ;
+    module_desc = 'Module de Suivi des Habitats d''un Territoire'
+WHERE module_code ILIKE 'SHT' ;
 
 \echo '----------------------------------------------------------------------------'
 \echo 'Create acquisition framework for Flore Sentinelle Network'
@@ -49,7 +49,7 @@ INSERT INTO gn_meta.t_acquisition_frameworks (
     '28917b9b-2e17-4bbe-8207-1254a9748844',
     'Suivis Flore Sentinelle',
     'Ensemble des suivis réalisés dans les Alpes françaises dans le cadre du réseau Flore Sentinelle.',
-    ref_nomenclatures.get_id_nomenclature('NIVEAU_TERRITORIAL', '4'),,
+    ref_nomenclatures.get_id_nomenclature('NIVEAU_TERRITORIAL', '4'),
     'Alpes françaises.',
     'Suivi, Alpes, France, Flore, Réseau.',
     ref_nomenclatures.get_id_nomenclature('TYPE_FINANCEMENT', '1'),

@@ -70,6 +70,7 @@ function main() {
     commands=("wget")
     checkBinary "${commands[@]}"
 
+    definePsqlVerbosity
     definePathesVariables
 
     stepToNext createDirectoriesArchitecture
@@ -109,7 +110,6 @@ function main() {
     stepToNext prepareModuleSht
     stepToNext updateModuleShtSettings
     stepToNext runModuleShtInstall
-    stepToNext updateModuleShtSettingsAfterInstall
 
     stepToNext migrateGeoNatureUsers
     stepToNext insertFloreSentinelleMetadata
@@ -120,6 +120,14 @@ function main() {
 
     #+----------------------------------------------------------------------------------------------------------+
     displayTimeElapsed
+}
+
+function definePsqlVerbosity() {
+    if [[ -n ${verbose-} ]]; then
+        readonly psql_verbosity="${psql_verbose_opts-}"
+    else
+        readonly psql_verbosity="${psql_quiet_opts-}"
+    fi
 }
 
 function definePathesVariables() {
@@ -539,7 +547,7 @@ function updateUsershubSettings() {
 
     printPretty "Change 'config.py' parameters" ${Gra}
     sed -i "s/^\(FILL_MD5_PASS\)\s*=.*$/\1 = True/" "${usershub_dir}/config/config.py"
-    sed -i "s/^\[PASS_METHOD\)\s*=.*$/\1 = \"md5\"/" "${usershub_dir}/config/config.py"
+    sed -i "s/^\(PASS_METHOD\)\s*=.*$/\1 = \"md5\"/" "${usershub_dir}/config/config.py"
 
 }
 
@@ -591,6 +599,9 @@ function updateModuleSftSettings() {
     printPretty "Copy samples files to create new config files..." ${Gra}
     cp "${module_dir}/config/settings.sample.ini" "${module_dir}/config/settings.ini"
     cp "${module_dir}/config/conf_gn_module.sample.toml" "${module_dir}/config/conf_gn_module.toml"
+
+    printPretty "Update 'settings.ini' file parameters..." ${Gra}
+    sed -i "s/^\(insert_sample_data\)\s*=.*$/\1=false/" "${module_dir}/config/settings.ini"
 
     printPretty "Update 'conf_gn_module.toml' file parameters..." ${Gra}
     sed -i "s/^\(map_gpx_color\)\s*=.*$/\1 = \"magenta\"/" "${module_dir}/config/conf_gn_module.toml"
@@ -649,6 +660,9 @@ function updateModuleShtSettings() {
 
     printPretty "${Blink}${Red}WARNING: ${RCol}${Whi}update MANUALLY config files before run next step !${RCol}"
 
+    printMsg "Update 'settings.ini' parameters..."
+    sed -i "s/^\(insert_sample_data\)\s*=.*$/\1=false/" "${module_dir}/config/settings.ini"
+
     printPretty "Insert new parameters in 'settings.ini' files..." ${Gra}
     local new_param="#+----------------------------------------------------------------------------+\n"
     local new_param+="# Data configuration used by install, uninstall and imports scripts\n\n"
@@ -668,12 +682,6 @@ function runModuleShtInstall() {
     geonature install_gn_module "${module_dir}/" "${abr}"
 }
 
-function updateModuleShtSettingsAfterInstall() {
-    printMsg "Updating'settings.ini' parameters..."
-
-    sed -i "s/^\(insert_sample_data\)\s*=.*$/\1=\"false\"/" "${gn_dir}/config/settings.ini"
-}
-
 function migrateGeoNatureUsers() {
     printMsg "Updating'settings.ini' parameters..."
     cd "${bin_dir}"
@@ -690,24 +698,28 @@ function insertFloreSentinelleMetadata() {
 
 function prepareSftData() {
     local readonly sft_dir="${modules_dir}/sft"
-    printMsg "Prepare SFT data import directories structure..."
-
     printMsg "Update import settings..."
-    sed -i 's#^\(taxons_csv_path\)\s*=.*$#\1="${import_dir}/00/taxons.csv"#' "${sft_dir}/config/settings.ini"
 
-    sed -i 's#^\(nomenclatures_csv_path\)\s*=.*$#\1="${import_dir}/00/nomenclatures.csv"#' "${sft_dir}/config/settings.ini"
+    local new_var='import_number="00"'
+    if ! grep -q "${new_var}" "${sft_dir}/config/imports_settings.ini" ; then
+        sed -i "s/^\(import_date=.*\)$/\1\n${new_var}\n/" "${sft_dir}/config/imports_settings.ini"
+    fi
 
-    sed -i 's#^\(meshes_tmp_table\)\s*=.*$#\1="tmp_meshes"#' "${sft_dir}/config/settings.ini"
-    sed -i 's/^\(meshes_source\)\s*=.*$/\1="CBNA"/' "${sft_dir}/config/settings.ini"
-    sed -i 's#^\(meshes_shape_path\)\s*=.*$#\1="${import_dir}/${import_number}/meshes.shp"#' "${sft_dir}/config/settings.ini"
-    sed -i 's#^\(meshes_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_meshes.log"#' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(taxons_csv_path\)\s*=.*$#\1="${import_dir}/00/taxons.csv"#' "${sft_dir}/config/imports_settings.ini"
 
-    sed -i 's#^\(sites_tmp_table\)\s*=.*$#\1="tmp_sites"#' "${sft_dir}/config/settings.ini"
-    sed -i 's#^\(sites_shape_path\)\s*=.*$#\1="${import_dir}/${import_number}/sites.shp"#' "${sft_dir}/config/settings.ini"
-    sed -i 's#^\(sites_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_sites.log"#' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(nomenclatures_csv_path\)\s*=.*$#\1="${import_dir}/00/nomenclatures.csv"#' "${sft_dir}/config/imports_settings.ini"
 
-    sed -i 's#^\(visits_csv_path\)\s*=.*$#\1="${import_dir}/${import_number}/visits.csv"#' "${sft_dir}/config/settings.ini"
-    sed -i 's#^\(visits_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_visits.log"#' "${sft_dir}/config/settings.ini"
+    sed -i 's#^\(meshes_tmp_table\)\s*=.*$#\1="tmp_meshes"#' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's/^\(meshes_source\)\s*=.*$/\1="CBNA"/' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's#^\(meshes_shape_path\)\s*=.*$#\1="${import_dir}/${import_number}/meshes.shp"#' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's#^\(meshes_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_meshes.log"#' "${sft_dir}/config/imports_settings.ini"
+
+    sed -i 's#^\(sites_tmp_table\)\s*=.*$#\1="tmp_sites"#' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's#^\(sites_shape_path\)\s*=.*$#\1="${import_dir}/${import_number}/sites.shp"#' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's#^\(sites_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_sites.log"#' "${sft_dir}/config/imports_settings.ini"
+
+    sed -i 's#^\(visits_csv_path\)\s*=.*$#\1="${import_dir}/${import_number}/visits.csv"#' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's#^\(visits_import_log\)\s*=.*$#\1="${log_dir}/$(date +\x27%F\x27)_import${import_number}_visits.log"#' "${sft_dir}/config/imports_settings.ini"
 }
 
 function importSftData00() {
@@ -715,11 +727,11 @@ function importSftData00() {
     printMsg "Importing SFT data #00..."
 
     printPretty "Update import settings #00" ${Gra}
-    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-05-31"/' "${sft_dir}/config/settings.ini"
-    sed -i 's/^\(import_number\)\s*=.*$/\1="00"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-05-31"/' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's/^\(import_number\)\s*=.*$/\1="00"/' "${sft_dir}/config/imports_settings.ini"
     local new_comment="# Import 00: 2020-05-31 - referentiels"
-    if ! grep -q "${new_comment}" "${sft_dir}/config/settings.ini" ; then
-        sed -i "s/^\(import_date=.*\)$/\1\n${new_comment}\n/" "${sft_dir}/config/settings.ini"
+    if ! grep -q "${new_comment}" "${sft_dir}/config/imports_settings.ini" ; then
+        sed -i "s/^\(import_number=.*\)$/\1${new_comment}\n/" "${sft_dir}/config/imports_settings.ini"
     fi
 
     printPretty "Download SFT import data #00" ${Gra}
@@ -745,14 +757,14 @@ function importSftData01() {
     printMsg "Importing SFT data #01..."
 
     printPretty "Update import settings #01" ${Gra}
-    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-06-01"/' "${sft_dir}/config/settings.ini"
-    sed -i 's/^\(import_number\)\s*=.*$/\1="01"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-06-01"/' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's/^\(import_number\)\s*=.*$/\1="01"/' "${sft_dir}/config/imports_settings.ini"
     local new_comment="# Import 01: 2020-06-01"
-    if ! grep -q "${new_comment}" "${sft_dir}/config/settings.ini" ; then
-        sed -i "s/^\(import_date=.*\)$/\1\n${new_comment}\n/" "${sft_dir}/config/settings.ini"
+    if ! grep -q "${new_comment}" "${sft_dir}/config/imports_settings.ini" ; then
+        sed -i "s/^\(import_number=.*\)$/\1${new_comment}\n/" "${sft_dir}/config/imports_settings.ini"
     fi
-    sed -i 's/^\(site_code_column\)\s*=.*$/\1="idzp"/' "${sft_dir}/config/settings.ini"
-    sed -i 's/^\(site_desc_column\)\s*=.*$/\1="taxon"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(site_code_column\)\s*=.*$/\1="idzp"/' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's/^\(site_desc_column\)\s*=.*$/\1="taxon"/' "${sft_dir}/config/imports_settings.ini"
 
     printPretty "Download SFT import data #01" ${Gra}
     rm -f "${sft_dir}/data/imports/sft_import_01.zip"
@@ -778,11 +790,11 @@ function importSftData02() {
     printMsg "Importing SFT data #02..."
 
     printPretty "Update import settings #02" ${Gra}
-    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-06-02"/' "${sft_dir}/config/settings.ini"
-    sed -i 's/^\(import_number\)\s*=.*$/\1="02"/' "${sft_dir}/config/settings.ini"
+    sed -i 's/^\(import_date\)\s*=.*$/\1="2020-06-02"/' "${sft_dir}/config/imports_settings.ini"
+    sed -i 's/^\(import_number\)\s*=.*$/\1="02"/' "${sft_dir}/config/imports_settings.ini"
     local new_comment="# Import 02: 2020-06-02"
-    if ! grep -q "${new_comment}" "${sft_dir}/config/settings.ini" ; then
-        sed -i "s/^\(import_date=.*\)$/\1\n${new_comment}\n/" "${sft_dir}/config/settings.ini"
+    if ! grep -q "${new_comment}" "${sft_dir}/config/imports_settings.ini" ; then
+        sed -i "s/^\(import_number=.*\)$/\1${new_comment}\n/" "${sft_dir}/config/imports_settings.ini"
     fi
 
     printPretty "Download SFT import data #02" ${Gra}
