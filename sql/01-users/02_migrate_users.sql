@@ -323,9 +323,14 @@ SELECT setval(
 INSERT INTO utilisateurs.cor_role_app_profil
     (id_role, id_application, id_profil)
 VALUES
-    (10, (SELECT id_application FROM utilisateurs.t_applications WHERE code_application = 'UH'), 6), --admin UsersHub
-    (10, (SELECT id_application FROM utilisateurs.t_applications WHERE code_application = 'TH'), 6), --admin TaxHub
-    (10, (SELECT id_application FROM utilisateurs.t_applications WHERE code_application = 'GN'), 6)  --admin GeoNature
+    -- admin / UsersHub
+    (10, (SELECT id_application FROM utilisateurs.t_applications WHERE code_application = 'UH'), 6),
+    -- admin / TaxHub
+    (10, (SELECT id_application FROM utilisateurs.t_applications WHERE code_application = 'TH'), 6),
+    -- admin / GeoNature / Administrators
+    (10, (SELECT id_application FROM utilisateurs.t_applications WHERE code_application = 'GN'), 6),
+    -- Group Flore Sentinelle Users / GeoNature / Redactors
+    (10000, (SELECT id_application FROM utilisateurs.t_applications WHERE code_application = 'GN'), 2)
 ;
 
 \echo '----------------------------------------------------------------------------'
@@ -402,8 +407,57 @@ VALUES
     (10, 3, 4, 1, 3),
     (10, 4, 4, 1, 3),
     (10, 5, 4, 1, 3),
-    (10, 6, 4, 1, 3)
+    (10, 6, 4, 1, 3),
+    -- Groupe Utilisateurs Flore Sentinelle droits module SFT
+    (10000, 1, 4, (SELECT id_module FROM gn_commons.t_modules WHERE module_code = 'SFT'), 1),
+    (10000, 2, 4, (SELECT id_module FROM gn_commons.t_modules WHERE module_code = 'SFT'), 1),
+    (10000, 3, 3, (SELECT id_module FROM gn_commons.t_modules WHERE module_code = 'SFT'), 1),
+    (10000, 4, 1, (SELECT id_module FROM gn_commons.t_modules WHERE module_code = 'SFT'), 1),
+    (10000, 5, 4, (SELECT id_module FROM gn_commons.t_modules WHERE module_code = 'SFT'), 1),
+    (10000, 6, 2, (SELECT id_module FROM gn_commons.t_modules WHERE module_code = 'SFT'), 1)
 ;
+
+\echo '----------------------------------------------------------------------------'
+\echo 'Update organisms names to be the same that imported data'
+-- CBN Alpin
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'CBNA'
+WHERE id_organisme = 1 ;
+
+-- Parc National Écrins
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'PNE'
+WHERE id_organisme = 2 ;
+
+-- PNR Bauges
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'PNRB'
+WHERE id_organisme = 6 ;
+
+-- Parc National Vanoise
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'PNV'
+WHERE id_organisme = 8 ;
+
+-- RN Haute Chaîne Jura
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'Réserve naturelle nationale de la haute chaîne du Jura'
+WHERE id_organisme = 10 ;
+
+-- PNR Queyrac
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'PNRQ'
+WHERE id_organisme = 14 ;
+
+-- Parc National Mercantour
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'PNM'
+WHERE id_organisme = 17 ;
+
+-- PNR Chartreuse
+UPDATE utilisateurs.bib_organismes
+SET nom_organisme = 'PNRC'
+WHERE id_organisme = 19 ;
 
 \echo '----------------------------------------------------------------------------'
 \echo 'Commit if all good !'
