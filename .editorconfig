@@ -21,3 +21,8 @@ trim_trailing_whitespace = true
 [*.md,*.rst]
 indent_size = 4
 trim_trailing_whitespace = false
+
+[*.tsv]
+indent_style = tab
+indent_size = 4
+trim_trailing_whitespace = true
