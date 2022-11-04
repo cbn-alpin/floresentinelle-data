@@ -13,7 +13,7 @@ insert_final_newline = true
 # See: https://github.com/editorconfig/editorconfig-vscode/issues/153
 #trim_trailing_whitespace = true
 
-[*.sh]
+[*.sh,*.sql]
 indent_style = space
 indent_size = 4
 trim_trailing_whitespace = true
