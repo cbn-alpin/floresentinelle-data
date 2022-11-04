@@ -1,4 +1,4 @@
-# Fusion d'utilisateur
+# Fusion d'utilisateurs
 
 Contient un script Bash permettant la fusion de plusieurs utilisateurs
 de GeoNature afin de supprimer les doublons.
@@ -21,7 +21,7 @@ rsync -av \
   * Déployer ce dossier sur le serveur hébergeant floresentinelle.fr à l'aide de `rsync` (voir ci-dessus).
   * Se placer à la racine du dossier `merge_user/` à l'aide de la commande `cd` : `cd ~/data/merge_user/`
   * Les scripts de migrations sont présent dans le dossier `bin/`. Pour afficher les options de chaque script
-  utiliser l'option `-h`. Exemple : `./bin/migrate_users.sh -h`
+  utiliser l'option `-h`. Exemple : `./bin/merger_users.sh -h`
   * L'ensemble des scripts utilisent les fichiers de configuration présent dans le dossier `config/`. Le fichier `settings.default.ini` est chargé en premier lieu. Ses valeurs de paramètres peuvent être écrasé par celles
     présentes dans un fichier `settings.ini`.
   * Si vous souhaitez modifier des valeurs de configuration par défaut :
@@ -34,6 +34,6 @@ rsync -av \
       vi config/settings.ini
       ```
   * Lancer le scripts Bash :
-    * à partir d'une liste dans un fichier CSV : `./bin/migrate_users.sh -v -f <chemin-fichier-csv>`
-    * pour un utilisateur à fusionner : `./bin/migrate_users.sh -v -n <id-role-à-garder> -o <ids-roles-à-remplacer>`
+    * à partir d'une liste dans un fichier CSV : `./bin/merge_users.sh -v -f <chemin-fichier-csv>`
+    * pour un utilisateur à fusionner : `./bin/merge_users.sh -v -n <id-role-à-garder> -o <ids-roles-à-remplacer>`
 

@@ -7,7 +7,7 @@
 --
 -- Use this script this way:
 --    sed "s/\${oldIdRole}/<old_id_role>/g" "~/data/merge_users/data/sql/01_merge_user.sql" | \
---    sed "s/\${newIdRole}/<new_id_role>/g" "~/data/merge_users/data/sql/01_merge_user.sql" | \
+--    sed -e "s/\${newIdRole}/<new_id_role>/g" | \
 --    psql -h localhost -U geonatadmin -d geonature2db \
 --      -v 'oldIdRole=<old_id_role>' -v 'newIdRole=<new_id_role>' \
 --      -f -
@@ -17,14 +17,13 @@
 --      utilisateurs.cor_role_token => uniquement pour les utilisateurs temporaire (création de compte)
 --
 -- Lister les tables à traiter en ouvrant la liste des dépendances de la table t_roles avec
--- éditeur de base de données.
+-- un éditeur de base de données.
 --
 -- Tables restant à traiter :
 --      pr_occtax.t_releves_occtax
 --      pr_occtax.cor_role_releves_occtax
 --      pr_occhab.t_stations
 --      pr_occhab.cor_station_observer
-
 
 
 BEGIN;
@@ -152,6 +151,7 @@ WHERE cda.id_role IN (:oldIdRole)
 \echo 'Delete old id_role in "gn_meta.cor_dataset_actor" when new id_role already exists'
 DELETE FROM gn_meta.cor_dataset_actor
 WHERE id_role IN (:oldIdRole) ;
+
 
 \echo '-------------------------------------------------------------------------------'
 \echo 'Replace old id_role in "gn_permissions.cor_role_action_filter_module_object"'
