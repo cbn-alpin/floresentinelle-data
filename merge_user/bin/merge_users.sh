@@ -17,7 +17,7 @@ Usage: ./$(basename $BASH_SOURCE)[options]
      -v | --verbose: display more infos
      -x | --debug: display debug script infos
      -c | --config: path to config file to use (default : config/settings.ini)
-     -f | --file: path to users CSV file. Columns : id (=new_id_role), id_duplicates (=old_id_role), identifier.
+     -f | --file: path to users CSV file. Columns : id (=new_id_role), id_duplicates (=old_id_role).
      -o | --old: comma separated string of old id_role. Ex. : 12,125. Use with --new.
      -n | --new: string of new id_role. Id role used to replace all old id_role. Ex. 54. Use with --old.
 EOF
@@ -71,7 +71,10 @@ function main() {
     initScript "${@}"
     parseScriptOptions "${@}"
     loadScriptConfig "${setting_file_path-}"
-    redirectOutput "${dbgn_log_file}"
+    redirectOutput "${mgnu_log_file}"
+
+    commands=("psql" "csvtool")
+    checkBinary "${commands[@]}"
 
     # Manage verbosity
     if [[ -n ${verbose-} ]]; then
@@ -87,7 +90,7 @@ function main() {
     if [[ -n ${users_csv_path-} ]]; then
         mergeUsersFromCsv
     elif [[ -n ${new_id_role-} ]] && [[ -n ${old_id_role-} ]] ; then
-        mergeUsers
+        executeMergeUserSql "${new_id_role}" "${old_id_role}"
     else
         parseScriptOptions
     fi
@@ -97,37 +100,52 @@ function main() {
     displayTimeElapsed
 }
 
-function mergeUsers() {
-    printMsg "Merging ${old_id_role} by ${new_id_role} ..."
-    export PGPASSWORD="${db_pass}"; \
-        psql -h "${db_host}" -U "${db_user}" -d "${db_name}" ${psql_verbosity} \
-            -v "oldIdRole=${old_id_role}" -v "newIdRole=${new_id_role}" \
-            -f  "${sql_dir}/01_merge_user.sql"
-}
-
 function mergeUsersFromCsv() {
-    local head="$(csvtool head 1 "${users_csv_path}")"
-    printMsg "Merging users..."
+    local head="$(csvtool -t TAB head 1 "${users_csv_path}")"
+
+    printMsg "Merging users from ${users_csv_path}"
     local tasks_done=0
     local tasks_count="$(($(csvtool height "${users_csv_path}") - 1))"
     while IFS= read -r line; do
         local id="$(printf "$head\n$line" | csvtool namedcol id - | sed 1d | sed -e 's/^"//' -e 's/"$//')"
         local id_duplicates="$(printf "$head\n$line" | csvtool namedcol id_duplicates - | sed 1d | sed -e 's/^"//' -e 's/"$//')"
-        local identifier="$(printf "$head\n$line" | csvtool namedcol identifier - | sed 1d | sed -e 's/^"//' -e 's/"$//')"
 
-        printVerbose "Merge user: '${identifier}' (keep: ${id}, replace ${id_duplicates}"
-        export PGPASSWORD="${db_pass}"; \
-            psql -h "${db_host}" -U "${db_user}" -d "${db_name}" ${psql_verbosity} \
-                -v "newIdRole=${id}" \
-                -v "oldIdRole=${id_duplicates}" \
-                -f "${sql_dir}/01_merge_user.sql"
+        executeMergeUserSql "${id}" "${id_duplicates}"
 
         if ! [[ -n ${verbose-} ]]; then
             (( tasks_done += 1 ))
             displayProgressBar $tasks_count $tasks_done "merging"
         fi
-    done < <(stdbuf -oL csvtool drop 1 "${users_csv_path}")
+    done < <(stdbuf -oL csvtool -t TAB drop 1 "${users_csv_path}")
     echo
+}
+
+function executeMergeUserSql() {
+    if [[ $# -lt 2 ]]; then
+        exitScript "Missing required argument to ${FUNCNAME[0]}()!" 2
+    fi
+
+    local readonly new_id_role="${1}"
+    local readonly old_ids_roles="${2}"
+
+    printMsg "Replacing ${old_ids_roles} by ${new_id_role} ..."
+
+    if [[ -n ${new_id_role-} ]] && [[ -n ${old_ids_roles-} ]] ; then
+        oldIFS="${IFS}"
+        export IFS=","
+        for old_id_role in ${old_ids_roles}; do
+            export PGPASSWORD="${db_pass}"; \
+            sed "s/\${oldIdRole}/${old_id_role}/g" "${sql_dir}/01_merge_user.sql" | \
+            sed -e "s/\${newIdRole}/${new_id_role}/g" | \
+            psql -h "${db_host}" -U "${db_user}" -d "${db_name}" ${psql_verbosity} \
+                -v "newIdRole=${new_id_role}" \
+                -v "oldIdRole=${old_id_role}" \
+                -f -
+        done
+        IFS="${oldIFS}"
+    else
+        printError "Empty id: new_id_role=${new_id_role} ; old_id_role=${old_ids_roles}"
+    fi
 }
 
 main "${@}"

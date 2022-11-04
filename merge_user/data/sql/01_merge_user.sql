@@ -1,9 +1,16 @@
 -- Delete properly duplicate users.
 -- Required rights: DB OWNER
 -- GeoNature database compatibility : v2.6.0+
--- Use this script this way: psql -h localhost -U geonatadmin -d geonature2db \
+--
+-- This file contain variables "${newIdRole}" and "${oldIdRole}" which must be replaced
+-- with "sed" before passing the updated content to Psql.
+--
+-- Use this script this way:
+--    sed "s/\${oldIdRole}/<old_id_role>/g" "~/data/merge_users/data/sql/01_merge_user.sql" | \
+--    sed "s/\${newIdRole}/<new_id_role>/g" "~/data/merge_users/data/sql/01_merge_user.sql" | \
+--    psql -h localhost -U geonatadmin -d geonature2db \
 --      -v 'oldIdRole=<old_id_role>' -v 'newIdRole=<new_id_role>' \
---      -f ~/data/merge_users/data/sql/01_merge_user.sql
+--      -f -
 --
 -- Tables qui ne seront pas traitées :
 --      utilisateurs.cor_roles_app_profil => ne semble gérer que des groupes !
@@ -239,15 +246,15 @@ DO $$
             WHERE table_schema = 'pr_conservation_strategy'
                 AND table_name = 't_assessment'
         ) IS TRUE THEN
-            RAISE NOTICE ' --> meta_create_by'
+            RAISE NOTICE ' --> meta_create_by' ;
             UPDATE pr_conservation_strategy.t_assessment SET
-                meta_create_by = :newIdRole
-            WHERE meta_create_by IN (:oldIdRole) ;
+                meta_create_by = ${newIdRole}
+            WHERE meta_create_by IN (${oldIdRole}) ;
 
-            RAISE NOTICE ' --> meta_update_by'
+            RAISE NOTICE ' --> meta_update_by' ;
             UPDATE pr_conservation_strategy.t_assessment SET
-                meta_update_by = :newIdRole
-            WHERE meta_update_by IN (:oldIdRole) ;
+                meta_update_by = ${newIdRole}
+            WHERE meta_update_by IN (${oldIdRole}) ;
         ELSE
       		RAISE NOTICE ' Table "pr_conservation_strategy.t_assessment" not exists !' ;
         END IF ;
@@ -265,20 +272,20 @@ DO $$
             WHERE table_schema = 'pr_priority_flora'
                 AND table_name = 'cor_zp_obs'
         ) IS TRUE THEN
-            RAISE NOTICE ' Replace old id_role'
+            RAISE NOTICE ' Replace old id_role' ;
             UPDATE pr_priority_flora.cor_zp_obs AS czo0 SET
-                id_role = :newIdRole
-            WHERE czo0.id_role IN (:oldIdRole)
+                id_role = ${newIdRole}
+            WHERE czo0.id_role IN (${oldIdRole})
                 AND NOT EXISTS (
                     SELECT 'x'
                     FROM pr_priority_flora.cor_zp_obs AS czo1
-                    WHERE czo1.id_role = :newIdRole
+                    WHERE czo1.id_role = ${newIdRole}
                         AND czo1.id_zp = czo0.id_zp
                 ) ;
 
-            RAISE NOTICE ' Delete old id_role when new id_role already exists'
+            RAISE NOTICE ' Delete old id_role when new id_role already exists' ;
             DELETE FROM pr_priority_flora.cor_zp_obs
-            WHERE id_role IN (:oldIdRole) ;
+            WHERE id_role IN (${oldIdRole}) ;
         ELSE
       		RAISE NOTICE ' Table "pr_priority_flora.cor_zp_obs" not exists !' ;
         END IF ;
