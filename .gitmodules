@@ -1,0 +1,3 @@
+[submodule "taxhub"]
+	path = taxhub
+	url = https://github.com/cbn-alpin/geonature-taxhub-import.git
