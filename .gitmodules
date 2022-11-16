@@ -1,3 +1,6 @@
 [submodule "taxhub"]
 	path = taxhub
 	url = https://github.com/cbn-alpin/geonature-taxhub-import.git
+[submodule "import-parser"]
+	path = import-parser
+	url = https://github.com/cbn-alpin/geonature-import-parser.git
