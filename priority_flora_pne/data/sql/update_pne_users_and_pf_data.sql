@@ -359,7 +359,7 @@ INSERT INTO pr_priority_flora.cor_zp_obs (
 
 
 \echo '----------------------------------------------------------------------------'
-\echo 'Insert data in cor_ap_perturbation for new AP added from PNE database'
+\echo 'Insert data in cor_ap_physiognomy for new AP added from PNE database'
 
 WITH pne_ap_physiognomy AS (
 	SELECT 
