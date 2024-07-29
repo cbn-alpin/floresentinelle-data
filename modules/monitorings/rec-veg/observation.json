@@ -1,0 +1,51 @@
+{
+  "id_field_name": "id_observation",
+  "description_field_name":"cd_nom",
+  "chained": true,
+  "label": "observation",
+  "label_list": "Observations",
+  "genre": "F",
+  "redirect_to_parent": true,
+  "display_properties": [
+    "cd_nom",
+    "id_nomenclature_strate_vegetation",
+    "coverage",
+    "comments"
+  ],
+  "display_list": [
+    "cd_nom",
+    "id_nomenclature_strate_vegetation",
+    "coverage",
+    "comments"
+  ],
+  "specific": {
+    "cd_nom": {
+      "type_widget": "taxonomy",
+      "attribut_label": "Espèce observée",
+      "multiple": false,
+      "id_list": "__MODULE.ID_LIST_TAXONOMY",
+      "application": "TaxHub",
+      "required": true,
+      "type_util": "taxonomy"
+    },
+    "id_nomenclature_strate_vegetation": {
+      "type_widget": "nomenclature",
+      "attribut_label": "Strate de végétation concernée",
+      "code_nomenclature_type": "STRATE_VEGETATION",
+      "type_util": "nomenclature",
+      "required": true
+    },
+    "coverage": {
+      "type_widget": "number",
+      "attribut_label": "Recouvrement de l'espèce (%)",
+      "required": true,
+      "min": 0,
+      "max": 100,
+      "value": 0
+    },
+    "comments": {
+      "type_widget": "textarea",
+      "attribut_label": "Commentaire"
+    }
+  }
+}

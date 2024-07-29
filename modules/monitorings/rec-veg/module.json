@@ -1,0 +1,13 @@
+{
+    "module_label":"Végétation - Recouvrement",
+    "module_desc":"Module de suivi des végétations selon leur recouvrement",
+    "map_label_field_name": "sites_group_name",
+    "export_csv": [
+        {
+            "label": "Export observations CSV",
+            "type": "csv",
+            "method": "observations"
+        }
+    ]
+    }
+
