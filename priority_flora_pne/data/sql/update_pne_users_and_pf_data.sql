@@ -41,6 +41,26 @@ $function$
 ;
 
 
+CREATE OR REPLACE FUNCTION utilisateurs.get_id_group_by_name(groupname character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+ IMMUTABLE
+AS $function$
+    -- Function which return the id_role of a group by its name
+    DECLARE idRole integer;
+
+    BEGIN
+        SELECT INTO idRole tr.id_role
+        FROM utilisateurs.t_roles AS tr
+        WHERE tr.nom_role = groupName
+            AND tr.groupe = true ;
+
+        RETURN idRole ;
+    END;
+$function$
+;
+
+
 \echo '----------------------------------------------------------------------------'
 \echo 'Update uuid of users in common with PNE'
 
@@ -436,6 +456,35 @@ FROM pne_ap_physiognomy AS pap
     JOIN ref_nomenclatures.t_nomenclatures AS tn
         ON tn.cd_nomenclature = pap.physiognomy ;
 
+\echo '----------------------------------------------------------------------------'
+\echo 'Insert PNE users in cor_roles'
+
+INSERT INTO utilisateurs.cor_roles
+    SELECT
+        utilisateurs.get_id_group_by_name('Utilisateurs Flore Sentinelle'),
+        tr.id_role
+    FROM utilisateurs.t_roles AS tr
+        LEFT JOIN utilisateurs.cor_roles AS cr
+            ON cr.id_role_utilisateur = tr.id_role
+    WHERE id_organisme = utilisateurs.get_id_organism_by_name('PNE')
+        AND cr.id_role_groupe IS NULL
+        AND COALESCE(tr.pass, tr.pass_plus) IS NOT NULL
+        AND tr.active IS TRUE ;
+
+\echo '----------------------------------------------------------------------------'
+\echo 'Insert PNE observers in cor_roles'
+
+INSERT INTO utilisateurs.cor_roles
+    SELECT
+        utilisateurs.get_id_group_by_name('Observateurs Flore Sentinelle'),
+        tr.id_role
+    FROM utilisateurs.t_roles AS tr
+        LEFT JOIN utilisateurs.cor_roles AS cr
+            ON cr.id_role_utilisateur = tr.id_role
+    WHERE id_organisme = utilisateurs.get_id_organism_by_name('PNE')
+        AND cr.id_role_groupe IS NULL
+        AND COALESCE(tr.pass, tr.pass_plus) IS NULL
+        AND tr.active IS TRUE ;
 
 \echo '-------------------------------------------------------------------------------'
 \echo 'COMMIT if all is ok:'
